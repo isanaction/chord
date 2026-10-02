@@ -1,24 +1,28 @@
 import { genericText, splitPageTitle } from './generic';
+import { extractSheetFromDom } from './structural';
 import type { ImportAdapter, ImportCandidate, ImportPayload } from './types';
 
+/** ページの HTML 構造から譜面を読むアダプタを作る。読めなければ本文テキストからの読み取りに回る */
+function structuralAdapter(site: string, siteName: string, origins: string[], titleNoise: string[]): ImportAdapter {
+  return {
+    site,
+    siteName,
+    origins,
+    titleNoise,
+    parse(payload, doc) {
+      const text = doc ? extractSheetFromDom(doc) : null;
+      if (!text) return null;
+      return { site, siteName, url: payload.url, ...splitPageTitle(payload.title, titleNoise), text };
+    },
+  };
+}
+
 /**
- * 対応サイトの一覧。専用の読み取り（HTML 構造を使う）は、実際のページを元に作る（設計書 6.4）。
- * それまでは本文テキストからの汎用の読み取りを使う。
- * この一覧から外せば、そのサイトからの取り込みは止まる（EX-14）。
+ * 対応サイトの一覧。この一覧から外せば、そのサイトからの取り込みは止まる（EX-14）。
  */
 export const ADAPTERS: ImportAdapter[] = [
-  {
-    site: 'ufret',
-    siteName: 'U-FRET',
-    origins: ['https://www.ufret.jp', 'https://ufret.jp'],
-    parse: () => null,
-  },
-  {
-    site: 'gakkime',
-    siteName: '楽器.me',
-    origins: ['https://gakufu.gakki.me', 'https://gakki.me'],
-    parse: () => null,
-  },
+  structuralAdapter('ufret', 'U-FRET', ['https://www.ufret.jp', 'https://ufret.jp'], ['U-FRET', 'U-フレット', 'Uフレット']),
+  structuralAdapter('gakkime', '楽器.me', ['https://gakufu.gakki.me', 'https://gakki.me'], ['楽器.me', '楽器ミー']),
 ];
 
 export function findAdapter(origin: string): ImportAdapter | null {
@@ -56,7 +60,7 @@ export function interpretPayload(origin: string, payload: ImportPayload, parseHt
     site: adapter.site,
     siteName: adapter.siteName,
     url: payload.url,
-    ...splitPageTitle(payload.title, adapter.siteName),
+    ...splitPageTitle(payload.title, adapter.titleNoise),
     text: genericText(payload),
   };
   if (!candidate.text.trim()) return { ok: false, reason: '譜面を読み取れませんでした。譜面の部分を選択してから、もう一度押してください。' };

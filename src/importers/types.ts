@@ -27,6 +27,8 @@ export interface ImportAdapter {
   site: string;
   siteName: string;
   origins: string[];
+  /** ページタイトルから取り除くサイト名の表記 */
+  titleNoise: string[];
   /** 読み取れなければ null（汎用の読み取りに回す） */
   parse(payload: ImportPayload, doc: Document | null): ImportCandidate | null;
 }
