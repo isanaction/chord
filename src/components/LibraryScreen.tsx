@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { type LibraryItem, listLibrary } from '@/data/repository';
 import { IconDownload, IconPlus, IconSearch } from './icons';
+import { SyncBadge } from './SyncBadge';
 
 type Filter = 'all' | 'imported' | 'own';
 
@@ -41,13 +42,16 @@ export function LibraryScreen() {
     <main className="mx-auto flex min-h-dvh max-w-2xl flex-col bg-bg">
       <header className="flex items-center justify-between px-5 pt-[max(20px,env(safe-area-inset-top))] pb-2">
         <h1 className="text-[26px] leading-[34px] font-bold">ライブラリ</h1>
-        <Link
-          href="/new"
-          aria-label="曲を追加"
-          className="flex h-11 w-11 items-center justify-center rounded-full bg-accent-fill text-on-accent"
-        >
-          <IconPlus strokeWidth={2.4} />
-        </Link>
+        <div className="flex gap-2">
+          <SyncBadge />
+          <Link
+            href="/new"
+            aria-label="曲を追加"
+            className="flex h-11 w-11 items-center justify-center rounded-full bg-accent-fill text-on-accent"
+          >
+            <IconPlus strokeWidth={2.4} />
+          </Link>
+        </div>
       </header>
 
       <div className="px-4 pt-2">

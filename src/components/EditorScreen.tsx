@@ -136,6 +136,15 @@ export function EditorScreen({ sheetId, initial }: { sheetId?: string; initial?:
     }
   };
 
+  const exportChordPro = () => {
+    const blob = new Blob([toChordPro(meta, parsed.body)], { type: 'text/plain;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${(meta.title ?? 'sheet').replace(/[\\/:*?"<>|]/g, '_')}.cho`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+
   const remove = async () => {
     if (!sheetId || !window.confirm('この譜面を削除しますか？')) return;
     await deleteSheet(sheetId);
@@ -203,10 +212,15 @@ export function EditorScreen({ sheetId, initial }: { sheetId?: string; initial?:
             hint="あとで動画に合わせた練習に使います"
           />
           {sheetId && (
-            <button onClick={remove} className="mt-auto flex h-10 items-center justify-center gap-2 rounded-[10px] border border-line text-sm text-text-2">
-              <IconTrash size={16} />
-              この譜面を削除
-            </button>
+            <div className="mt-auto flex flex-col gap-2 pt-2">
+              <button onClick={exportChordPro} className="flex h-10 items-center justify-center gap-2 rounded-[10px] border border-line text-sm">
+                ChordPro で書き出す
+              </button>
+              <button onClick={remove} className="flex h-10 items-center justify-center gap-2 rounded-[10px] border border-line text-sm text-text-2">
+                <IconTrash size={16} />
+                この譜面を削除
+              </button>
+            </div>
           )}
         </section>
 

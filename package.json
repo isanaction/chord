@@ -12,6 +12,7 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.117.2",
     "@tombatossals/chords-db": "^0.5.1",
     "dexie": "^4.4.6",
     "dexie-react-hooks": "^4.4.0",

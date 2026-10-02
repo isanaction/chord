@@ -141,3 +141,10 @@ export function IconPause({ size = 26 }: { size?: number }) {
     </svg>
   );
 }
+
+export const IconSettings = (p: IconProps) => (
+  <Stroke {...p}>
+    <circle cx="12" cy="12" r="3" />
+    <path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9L7 7M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1" />
+  </Stroke>
+);
