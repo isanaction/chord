@@ -50,7 +50,7 @@ export function ImportGuide() {
           className="flex h-11 items-center gap-2 self-start rounded-xl bg-accent-fill px-5 text-sm font-bold text-on-accent"
         >
           <IconDownload size={18} />
-          Chord に取り込む
+          ヒケルに取り込む
         </a>
       </section>
 
