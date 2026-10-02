@@ -66,11 +66,22 @@ export type UserSheetSettings = {
   updatedAt: number;
 };
 
+/** 同期の対象になるテーブル */
+export type SyncTable = 'songs' | 'sheets' | 'sheetRevisions' | 'userSheetSettings';
+
+/** サーバーへの送信待ち（同じレコードは1件にまとまる） */
+export type OutboxEntry = { table: SyncTable; key: string; queuedAt: number };
+
+/** テーブルごとに、サーバーからどこまで取得したか */
+export type SyncState = { table: SyncTable; cursor: string };
+
 export class ChordDB extends Dexie {
   songs!: EntityTable<Song, 'id'>;
   sheets!: EntityTable<Sheet, 'id'>;
   sheetRevisions!: EntityTable<SheetRevision, 'id'>;
   userSheetSettings!: Dexie.Table<UserSheetSettings, [string, string]>;
+  outbox!: Dexie.Table<OutboxEntry, [SyncTable, string]>;
+  syncState!: Dexie.Table<SyncState, SyncTable>;
 
   constructor(name = 'chord') {
     super(name);
@@ -79,6 +90,10 @@ export class ChordDB extends Dexie {
       sheets: 'id, songId, ownerId, updatedAt, deletedAt',
       sheetRevisions: 'id, sheetId, [sheetId+revisionNo]',
       userSheetSettings: '[userId+sheetId], userId, lastOpenedAt',
+    });
+    this.version(2).stores({
+      outbox: '[table+key], queuedAt',
+      syncState: 'table',
     });
   }
 }

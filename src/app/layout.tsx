@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { Barlow_Semi_Condensed, IBM_Plex_Sans_JP, JetBrains_Mono } from 'next/font/google';
+import { AppRuntime } from '@/components/AppRuntime';
 import { THEME_INIT_SCRIPT } from '@/lib/theme-script';
 import './globals.css';
 
@@ -27,6 +28,8 @@ export const metadata: Metadata = {
   description: '自分用のコード譜・練習アプリ',
   // MVP は非公開（NF-10）。検索エンジンに載せない
   robots: { index: false, follow: false },
+  appleWebApp: { capable: true, title: 'Chord', statusBarStyle: 'black-translucent' },
+  icons: { apple: '/apple-touch-icon.png' },
 };
 
 export const viewport: Viewport = {
@@ -42,7 +45,10 @@ export default function RootLayout({ children }: LayoutProps<'/'>) {
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
-      <body className="min-h-full">{children}</body>
+      <body className="min-h-full">
+        {children}
+        <AppRuntime />
+      </body>
     </html>
   );
 }

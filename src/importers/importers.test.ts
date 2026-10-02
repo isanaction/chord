@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 import { describe, expect, it } from 'vitest';
 import { buildBookmarklet } from './bookmarklet';
 import { extractChordRegion, splitPageTitle } from './generic';
@@ -23,17 +24,29 @@ describe('汎用の読み取り', () => {
   });
 
   it('ページタイトルから曲名とアーティストを推定する', () => {
-    expect(splitPageTitle('夜明けのバス停 / サンプルアーティスト ギターコード - U-FRET', 'U-FRET')).toEqual({
+    expect(splitPageTitle('夜明けのバス停 / サンプルアーティスト ギターコード - U-FRET', ['U-FRET'])).toEqual({
       title: '夜明けのバス停',
       artist: 'サンプルアーティスト',
     });
+    expect(
+      splitPageTitle('夜明けのバス停 / サンプルアーティスト ギターコード/ウクレレコード/ピアノコード - U-フレット', ['U-FRET', 'U-フレット']),
+    ).toEqual({ title: '夜明けのバス停', artist: 'サンプルアーティスト' });
   });
 });
 
 describe('受け取ったデータの解釈', () => {
   const parseHtml = () => null;
 
-  it('対応サイトは本文から読み取る', () => {
+  it('対応サイトは HTML 構造から読み取り、メニューなどを含めない', () => {
+    const seg = (c: string, l: string) => `<p><span>${c}</span><span>${l}</span></p>`;
+    const html = `<body><nav>人気 定番 あ い う</nav><div id="s"><div>${seg('C', 'まだ眠る')}${seg('G', '街の')}</div><div>${seg('Am', '角を')}${seg('F', '曲がって')}</div></div><aside>プレミアム</aside></body>`;
+    const r = interpretPayload('https://www.ufret.jp', payload({ text: PAGE_TEXT, html }), () =>
+      new DOMParser().parseFromString(html, 'text/html'),
+    );
+    expect(r.ok && r.candidate.text).toBe('[C]まだ眠る[G]街の\n[Am]角を[F]曲がって');
+  });
+
+  it('HTML から読めなければ本文から読み取る', () => {
     const r = interpretPayload('https://www.ufret.jp', payload({ text: PAGE_TEXT }), parseHtml);
     expect(r.ok).toBe(true);
     if (!r.ok) return;
