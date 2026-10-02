@@ -42,3 +42,7 @@ next-env.d.ts
 
 # 取り込み元サイトの保存ページ（歌詞を含むためコミットしない）
 /fixtures-local/
+
+# playwright
+/test-results/
+/playwright-report/
