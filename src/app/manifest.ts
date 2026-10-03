@@ -2,8 +2,8 @@ import type { MetadataRoute } from 'next';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'ヒケル',
-    short_name: 'ヒケル',
+    name: 'hikeru',
+    short_name: 'hikeru',
     description: '自分用のコード譜・練習アプリ',
     lang: 'ja',
     start_url: '/',

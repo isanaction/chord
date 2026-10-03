@@ -24,11 +24,11 @@ const jetbrains = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'ヒケル',
+  title: 'hikeru（ヒケル）',
   description: '自分用のコード譜・練習アプリ',
   // MVP は非公開（NF-10）。検索エンジンに載せない
   robots: { index: false, follow: false },
-  appleWebApp: { capable: true, title: 'ヒケル', statusBarStyle: 'black-translucent' },
+  appleWebApp: { capable: true, title: 'hikeru', statusBarStyle: 'black-translucent' },
   icons: { apple: '/apple-touch-icon.png' },
 };
 
