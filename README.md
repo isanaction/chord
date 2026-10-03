@@ -1,7 +1,8 @@
-# Chord
+# hikeru（ヒケル）
 
 自分用のコード譜・練習アプリ（MVP）。U-FRET・楽器.me の代わりに、広告なしで譜面を見て練習するための Web アプリです。
 
+- 本番: https://hikeru.app
 - 要求定義: [docs/requirements.md](docs/requirements.md)
 - 基本設計: [docs/design.md](docs/design.md)
 
@@ -25,7 +26,7 @@
 
 1. Supabase のプロジェクトを作り、`supabase/migrations/` の SQL を適用する
 2. 自分のメールアドレスを許可リストに登録する: `insert into public.allowed_emails values ('you@example.com');`
-3. Authentication → URL Configuration の Site URL / Redirect URLs に、アプリの URL（例: `https://<your-app>/settings`）を登録する
+3. Authentication → URL Configuration の Site URL / Redirect URLs に、アプリの URL（本番は `https://hikeru.app`。Redirect URLs には `https://hikeru.app/settings`）を登録する
 4. `.env.example` を参考に `NEXT_PUBLIC_SUPABASE_URL` と `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` を設定する（Vercel では Environment Variables）
 5. 無料プランの一時停止を防ぐため、GitHub の Secrets に `SUPABASE_URL` と `SUPABASE_PUBLISHABLE_KEY` を登録する（`.github/workflows/keepalive.yml` が3日おきにアクセスする）
 

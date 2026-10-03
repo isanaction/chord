@@ -160,7 +160,7 @@ export function EditorScreen({ sheetId, initial }: { sheetId?: string; initial?:
     <main className="flex min-h-dvh flex-col bg-bg lg:h-dvh lg:overflow-hidden">
       <header className="flex h-[60px] shrink-0 items-center gap-4 border-b border-line px-4 lg:px-6">
         <Link href="/" className="hidden font-chord text-xl font-bold text-accent sm:block">
-          Chord
+          hikeru
         </Link>
         <nav aria-label="パンくず" className="flex min-w-0 gap-2 text-[13px] text-text-2">
           <Link href="/" className="shrink-0">
