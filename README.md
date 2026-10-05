@@ -4,6 +4,7 @@
 
 - 要求定義: [docs/requirements.md](docs/requirements.md)
 - 基本設計: [docs/design.md](docs/design.md)
+- 公開準備計画（歌詞の公開・曲数の拡充）: [docs/launch-plan.md](docs/launch-plan.md)
 
 ## できること（ステップ 1-1）
 
