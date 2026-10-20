@@ -4,13 +4,21 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { UserSheetSettings } from '@/data/db';
-import { getSettings, getSheetDetail, saveSettings } from '@/data/repository';
+import { DEFAULT_SETTINGS, getSettings, getSheetDetail, saveSettings } from '@/data/repository';
+import type { ParsedChord } from '@/domain/chord/chord';
+import type { SheetBody } from '@/domain/sheet/types';
 import { evaluateCapos, suggestCapo } from '@/domain/chord/guitar';
 import { parseKey } from '@/domain/chord/pitch';
 import { displayContext, keyLabel, uniqueDisplayChords } from '@/domain/sheet/display';
 import { collectChords } from '@/domain/sheet/serialize';
+import { playChord } from '@/audio/engine';
+import { chordMidi } from '@/domain/chord/voicing';
+import { parseYouTubeId } from '@/domain/sync/youtube';
 import { useAutoScroll, useWakeLock } from '@/lib/hooks';
 import { ChordStrip } from './ChordStrip';
+import { MetronomeBar } from './practice/MetronomeBar';
+import { PracticeBar, VideoPanel } from './practice/PracticeControls';
+import { useVideoPractice } from './practice/useVideoPractice';
 import { IconBack, IconEdit, IconExpand, IconFaster, IconPause, IconPlay, IconSliders, IconSlower } from './icons';
 import { SettingsSheet } from './SettingsSheet';
 import { SheetView } from './SheetView';
@@ -28,7 +36,10 @@ export function SheetScreen({ id }: { id: string }) {
   const [started, setStarted] = useState(false);
   const [stageMode, setStageMode] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [videoOpen, setVideoOpen] = useState(false);
+  const [metronomeOpen, setMetronomeOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let alive = true;
@@ -73,6 +84,34 @@ export function SheetScreen({ id }: { id: string }) {
 
   const closeSettings = useCallback(() => setSettingsOpen(false), []);
 
+  const videoId = parseYouTubeId(detail?.sheet.referenceVideoUrl);
+  const practice = useVideoPractice({
+    sheetId: id,
+    revisionId: detail?.revision.id ?? '',
+    body: detail?.revision.body ?? EMPTY_BODY,
+    videoId: videoOpen ? videoId : null,
+    settings: settings ?? FALLBACK_SETTINGS,
+    update,
+    scrollRef,
+    videoRef,
+  });
+
+  // 動画の練習中は、スペースキーで記録（記録モード）または再生・停止
+  const { mode, recordNow, togglePlay: toggleVideo } = practice;
+  useEffect(() => {
+    if (!videoOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== ' ' || e.repeat) return;
+      const target = e.target as HTMLElement | null;
+      if (target?.closest('input, textarea, select, button, [contenteditable="true"]')) return;
+      e.preventDefault();
+      if (mode === 'record') recordNow();
+      else toggleVideo();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [videoOpen, mode, recordNow, toggleVideo]);
+
   if (detail === null) {
     return (
       <main className="flex h-dvh flex-col items-center justify-center gap-4 p-6 text-center">
@@ -91,6 +130,15 @@ export function SheetScreen({ id }: { id: string }) {
     setStarted(true);
     setPlaying((p) => !p);
   };
+  const openVideo = () => {
+    setPlaying(false);
+    setVideoOpen(true);
+  };
+  const closeVideo = () => {
+    practice.setMode('play');
+    setVideoOpen(false);
+  };
+  const onPlayChord = (token: ParsedChord) => playChord(chordMidi(token, settings.transpose, settings.instrument), settings.instrument);
   const soundingKey = keyLabel(view.ctx.soundingKey);
   const shapeKey = keyLabel(view.ctx.shapeKey);
   const originalKey = keyLabel(parseKey(detail.sheet.originalKey));
@@ -124,17 +172,34 @@ export function SheetScreen({ id }: { id: string }) {
               {view.capo === 0 ? 'カポなし' : `カポ ${view.capo}${shapeKey ? `（${shapeKey} の形）` : ''}`}
             </Chip>
             <Chip onClick={() => setSettingsOpen(true)}>{settings.instrument === 'guitar' ? 'ギター' : 'ピアノ'}</Chip>
-            {started && <Chip>スクロール ×{(speed / BASE_SPEED).toFixed(1)}</Chip>}
+            {started && !videoOpen && <Chip>スクロール ×{(speed / BASE_SPEED).toFixed(1)}</Chip>}
+            {videoId && !videoOpen && (
+              <Chip accent onClick={openVideo}>
+                ▶ 動画で練習
+              </Chip>
+            )}
+            <Chip accent={metronomeOpen} onClick={() => setMetronomeOpen((o) => !o)}>
+              メトロノーム
+            </Chip>
           </div>
         </>
+      )}
+      {/* 演奏モードでも動画は止めずに隠すだけにする（プレーヤーを作り直さない） */}
+      {videoOpen && (
+        <div className={stageMode ? 'hidden' : undefined}>
+          <VideoPanel videoRef={videoRef} player={practice.player} />
+        </div>
       )}
 
       <div
         ref={scrollRef}
-        onClick={() => started && togglePlay()}
-        className={`min-h-0 grow overflow-y-auto px-2.5 ${stageMode ? 'pt-[max(16px,env(safe-area-inset-top))]' : 'pt-1'} pb-[40dvh]`}
+        onClick={() => !videoOpen && started && togglePlay()}
+        className={`relative min-h-0 grow overflow-y-auto px-2.5 ${stageMode ? 'pt-[max(16px,env(safe-area-inset-top))]' : 'pt-1'}`}
       >
-        <SheetView body={view.body} format={view.ctx.format} scale={settings.fontScale} />
+        <SheetView body={view.body} format={view.ctx.format} scale={settings.fontScale} practice={videoOpen ? practice.marks : undefined} />
+        {/* 最後の行も画面の上のほうまでスクロールできるようにする余白。
+            パディングにすると、動画を開いたときに譜面の欄が縮めず画面からはみ出す */}
+        <div aria-hidden="true" className="h-[40dvh]" />
       </div>
 
       {stageMode ? (
@@ -146,40 +211,47 @@ export function SheetScreen({ id }: { id: string }) {
         </button>
       ) : (
         <>
-          <ChordStrip chords={view.chords} instrument={settings.instrument} shift={view.ctx.shift} />
-          <nav
-            aria-label="演奏の操作"
-            className="flex shrink-0 items-center justify-between border-t border-line bg-surface px-3 pt-2 pb-[max(16px,env(safe-area-inset-bottom))]"
-          >
-            <BarButton label="遅く" disabled={speedIndex === 0} onClick={() => update({ scrollSpeed: SPEEDS[Math.max(0, speedIndex - 1)] })}>
-              <IconSlower />
-            </BarButton>
-            <BarButton
-              label="先頭へ"
-              onClick={() => {
-                scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
+          {metronomeOpen && (
+            <MetronomeBar initialBpm={detail.sheet.bpm} timeSignature={detail.sheet.timeSignature} onClose={() => setMetronomeOpen(false)} />
+          )}
+          <ChordStrip chords={view.chords} instrument={settings.instrument} shift={view.ctx.shift} onPlay={onPlayChord} />
+          {videoOpen ? (
+            <PracticeBar practice={practice} onClose={closeVideo} />
+          ) : (
+            <nav
+              aria-label="演奏の操作"
+              className="flex shrink-0 items-center justify-between border-t border-line bg-surface px-3 pt-2 pb-[max(16px,env(safe-area-inset-bottom))]"
             >
-              <span className="font-chord text-lg leading-[22px] font-semibold">↑</span>
-            </BarButton>
-            <button
-              aria-label={playing ? '自動スクロールを止める' : '自動スクロールを始める'}
-              onClick={togglePlay}
-              className="flex h-16 w-16 items-center justify-center rounded-full bg-accent-fill text-on-accent"
-            >
-              {playing ? <IconPause /> : <IconPlay />}
-            </button>
-            <BarButton
-              label="速く"
-              disabled={speedIndex === SPEEDS.length - 1}
-              onClick={() => update({ scrollSpeed: SPEEDS[Math.min(SPEEDS.length - 1, speedIndex + 1)] })}
-            >
-              <IconFaster />
-            </BarButton>
-            <BarButton label="演奏モード" onClick={() => setStageMode(true)}>
-              <IconExpand />
-            </BarButton>
-          </nav>
+              <BarButton label="遅く" disabled={speedIndex === 0} onClick={() => update({ scrollSpeed: SPEEDS[Math.max(0, speedIndex - 1)] })}>
+                <IconSlower />
+              </BarButton>
+              <BarButton
+                label="先頭へ"
+                onClick={() => {
+                  scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+              >
+                <span className="font-chord text-lg leading-[22px] font-semibold">↑</span>
+              </BarButton>
+              <button
+                aria-label={playing ? '自動スクロールを止める' : '自動スクロールを始める'}
+                onClick={togglePlay}
+                className="flex h-16 w-16 items-center justify-center rounded-full bg-accent-fill text-on-accent"
+              >
+                {playing ? <IconPause /> : <IconPlay />}
+              </button>
+              <BarButton
+                label="速く"
+                disabled={speedIndex === SPEEDS.length - 1}
+                onClick={() => update({ scrollSpeed: SPEEDS[Math.min(SPEEDS.length - 1, speedIndex + 1)] })}
+              >
+                <IconFaster />
+              </BarButton>
+              <BarButton label="演奏モード" onClick={() => setStageMode(true)}>
+                <IconExpand />
+              </BarButton>
+            </nav>
+          )}
         </>
       )}
 
@@ -202,6 +274,9 @@ export function SheetScreen({ id }: { id: string }) {
     </main>
   );
 }
+
+const EMPTY_BODY: SheetBody = { formatVersion: 1, sections: [] };
+const FALLBACK_SETTINGS: UserSheetSettings = { ...DEFAULT_SETTINGS, userId: '', sheetId: '', updatedAt: 0 };
 
 function nearestIndex(list: number[], value: number): number {
   let best = 0;

@@ -5,6 +5,8 @@ import { ChordDB, setDB } from '../db';
 import {
   adoptLocalData,
   createSheet,
+  createSyncTrack,
+  findSyncTrack,
   deleteSheet,
   getSettings,
   getSheetDetail,
@@ -13,6 +15,7 @@ import {
   saveSettings,
   setCurrentUserId,
   updateSheet,
+  updateSyncTrack,
 } from '../repository';
 import { syncOnce } from './engine';
 import { FakeRemote } from './fakeRemote';
@@ -102,7 +105,27 @@ describe('端末間の同期', () => {
     expect((await on(phone, () => getSettings(id))).transpose).toBe(3);
   });
 
-  it('もう一度同期しても重複して取り込まない', async () => {
+  it('同期データと練習の設定も届く', async () => {
+    const id = await on(pc, () => createSheet({ meta: { title: 'A' }, ...sheetText(), sourceKind: 'paste' }));
+    const detail = await on(pc, () => getSheetDetail(id));
+    const lineId = detail!.revision.body.sections[0].lines[0].id;
+    const track = await on(pc, () => createSyncTrack({ sheetId: id, videoId: 'dQw4w9WgXcQ', revisionId: detail!.revision.id }));
+    await on(pc, () => updateSyncTrack(track.id, { cues: [{ lineId, t: 12_340 }], offsetMs: -100 }));
+    await on(pc, () => saveSettings(id, { loop: { a: 10_000, b: 20_000 }, playbackRate: 0.75, syncTrackId: track.id }));
+    await on(pc, () => syncOnce(pc, remote));
+    expect(remote.rows('syncTracks')[0]).toMatchObject({ video_id: 'dQw4w9WgXcQ', offset_ms: -100 });
+
+    await on(phone, () => syncOnce(phone, remote));
+    const got = await on(phone, () => findSyncTrack(id, 'dQw4w9WgXcQ'));
+    expect(got).toMatchObject({ id: track.id, cues: [{ lineId, t: 12_340 }], offsetMs: -100 });
+    expect(await on(phone, () => getSettings(id))).toMatchObject({
+      loop: { a: 10_000, b: 20_000 },
+      playbackRate: 0.75,
+      syncTrackId: track.id,
+    });
+  });
+
+    it('もう一度同期しても重複して取り込まない', async () => {
     await on(pc, () => createSheet({ meta: { title: 'A' }, ...sheetText(), sourceKind: 'paste' }));
     await on(pc, () => syncOnce(pc, remote));
     await on(phone, () => syncOnce(phone, remote));

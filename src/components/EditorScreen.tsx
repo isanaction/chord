@@ -209,7 +209,7 @@ export function EditorScreen({ sheetId, initial }: { sheetId?: string; initial?:
             value={value('video')}
             onChange={set('video')}
             placeholder="https://www.youtube.com/watch?v=..."
-            hint="あとで動画に合わせた練習に使います"
+            hint="譜面の画面の「動画で練習」で、動画に合わせて譜面を進められます"
           />
           {sheetId && (
             <div className="mt-auto flex flex-col gap-2 pt-2">

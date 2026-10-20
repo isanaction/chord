@@ -6,6 +6,7 @@ const CONFLICT_KEY: Record<SyncTable, string> = {
   songs: 'id',
   sheets: 'id',
   sheetRevisions: 'id',
+  syncTracks: 'id',
   userSheetSettings: 'user_id,sheet_id',
 };
 

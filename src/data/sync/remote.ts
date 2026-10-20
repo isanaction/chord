@@ -5,6 +5,7 @@ export const REMOTE_TABLE: Record<SyncTable, string> = {
   songs: 'songs',
   sheets: 'sheets',
   sheetRevisions: 'sheet_revisions',
+  syncTracks: 'sync_tracks',
   userSheetSettings: 'user_sheet_settings',
 };
 

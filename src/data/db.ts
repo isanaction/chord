@@ -62,12 +62,42 @@ export type UserSheetSettings = {
   instrument: Instrument;
   fontScale: number;
   simplify: boolean;
+  /** 区間ループ（F-PRAC-03）。動画上の時刻（ミリ秒）か、セクションで指定する */
+  loop?: LoopRange;
+  /** 動画の再生速度（F-PRAC-04） */
+  playbackRate?: number;
+  /** 使う同期データ（同じ譜面に複数あるとき） */
+  syncTrackId?: string;
   lastOpenedAt?: number;
   updatedAt: number;
 };
 
+export type LoopRange = { a: number; b: number } | { sectionId: string };
+
+/** 行の始まる時刻（動画上のミリ秒） */
+export type SyncCue = { lineId: string; t: number };
+
+/**
+ * 同期データ（設計書 4.2 sync_tracks、EX-07）。動画と組にして譜面とは別に持つ。
+ * revisionId は、どの版の行 ID に対する時刻か。
+ */
+export type SyncTrack = {
+  id: string;
+  sheetId: string;
+  ownerId: string;
+  provider: 'youtube';
+  videoId: string;
+  revisionId: string;
+  cues: SyncCue[];
+  /** 全体を前後にずらす補正（ミリ秒） */
+  offsetMs: number;
+  createdAt: number;
+  updatedAt: number;
+  deletedAt?: number;
+};
+
 /** 同期の対象になるテーブル */
-export type SyncTable = 'songs' | 'sheets' | 'sheetRevisions' | 'userSheetSettings';
+export type SyncTable = 'songs' | 'sheets' | 'sheetRevisions' | 'syncTracks' | 'userSheetSettings';
 
 /** サーバーへの送信待ち（同じレコードは1件にまとまる） */
 export type OutboxEntry = { table: SyncTable; key: string; queuedAt: number };
@@ -79,6 +109,7 @@ export class ChordDB extends Dexie {
   songs!: EntityTable<Song, 'id'>;
   sheets!: EntityTable<Sheet, 'id'>;
   sheetRevisions!: EntityTable<SheetRevision, 'id'>;
+  syncTracks!: EntityTable<SyncTrack, 'id'>;
   userSheetSettings!: Dexie.Table<UserSheetSettings, [string, string]>;
   outbox!: Dexie.Table<OutboxEntry, [SyncTable, string]>;
   syncState!: Dexie.Table<SyncState, SyncTable>;
@@ -94,6 +125,9 @@ export class ChordDB extends Dexie {
     this.version(2).stores({
       outbox: '[table+key], queuedAt',
       syncState: 'table',
+    });
+    this.version(3).stores({
+      syncTracks: 'id, sheetId, ownerId, updatedAt',
     });
   }
 }

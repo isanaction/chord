@@ -13,12 +13,11 @@ jobs:
     steps:
       - name: Query Supabase
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          # URL と publishable key はブラウザにも配る公開の値なので、本番の値を既定にする。
+          # 別のプロジェクトに向けるときは Secrets で上書きする
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || 'https://hceczmfxhufuuxkxvmyu.supabase.co' }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_DhjZJ2Xa9vCc0ESwlGcGrg_Y0iVwGvs' }}
         run: |
-          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_PUBLISHABLE_KEY" ]; then
-            echo "Supabase のシークレットが未設定のため、何もしません"
-            exit 0
-          fi
           curl -fsS "$SUPABASE_URL/rest/v1/allowed_emails?select=email&limit=1" \
             -H "apikey: $SUPABASE_PUBLISHABLE_KEY" -o /dev/null
+          echo "Supabase に問い合わせました"

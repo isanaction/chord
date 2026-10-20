@@ -2,8 +2,8 @@ import type { ChordDB, OutboxEntry, SyncTable } from '../db';
 import { settingsKey } from '../repository';
 import { fromRemote, type RemoteStore, toRemote } from './remote';
 
-/** 参照される側から順に送る（曲 → 譜面 → 版 → 個人設定） */
-const ORDER: SyncTable[] = ['songs', 'sheets', 'sheetRevisions', 'userSheetSettings'];
+/** 参照される側から順に送る（曲 → 譜面 → 版 → 同期データ → 個人設定） */
+const ORDER: SyncTable[] = ['songs', 'sheets', 'sheetRevisions', 'syncTracks', 'userSheetSettings'];
 const PAGE = 500;
 const CHUNK = 200;
 /** 取得の取りこぼしを防ぐため、前回の目印より少し前から取り直す（取り直した分は重複として無視される） */
