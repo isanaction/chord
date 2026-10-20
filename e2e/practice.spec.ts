@@ -45,6 +45,25 @@ async function seekVideo(page: Page, seconds: number) {
   await page.evaluate((s) => (window as unknown as { __video: { seek(s: number): void } }).__video.seek(s), seconds);
 }
 
+/** 端末内 DB（IndexedDB）に保存された再生速度 */
+async function savedPlaybackRate(page: Page): Promise<number | undefined> {
+  return page.evaluate(
+    () =>
+      new Promise<number | undefined>((resolve, reject) => {
+        const open = indexedDB.open('chord');
+        open.onerror = () => reject(open.error);
+        open.onsuccess = () => {
+          const all = open.result.transaction('userSheetSettings').objectStore('userSheetSettings').getAll();
+          all.onsuccess = () => {
+            open.result.close();
+            resolve((all.result as { playbackRate?: number }[]).find((r) => r.playbackRate !== undefined)?.playbackRate);
+          };
+          all.onerror = () => reject(all.error);
+        };
+      }),
+  );
+}
+
 async function createSheetWithVideo(page: Page) {
   await page.goto('/new');
   await page.getByRole('textbox', { name: '譜面テキスト' }).fill(SHEET_TEXT);
@@ -108,6 +127,9 @@ test('動画に合わせて同期を記録し、再生位置の行が追いか�
   await page.getByRole('button', { name: '遅く' }).click();
   await expect(page.getByText('速度 ×0.75')).toBeVisible();
   expect(await page.evaluate(() => (window as unknown as { __video: { rate: number } }).__video.rate)).toBe(0.75);
+
+  // 保存は画面の更新と並行して行うので、端末内 DB に入ったのを確かめてから開き直す
+  await expect.poll(() => savedPlaybackRate(page)).toBe(0.75);
 
   await page.reload();
   await page.getByRole('button', { name: '▶ 動画で練習' }).click();
