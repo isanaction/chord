@@ -21,11 +21,18 @@
 - オフラインでも保存済みの譜面を開いて弾ける（PWA。ホーム画面に追加できる）
 - 全データの書き出し・読み込み（JSON）、譜面ごとの ChordPro 書き出し
 
+## できること（ステップ 1-3）
+
+- 動画に合わせた練習: 譜面に参考動画（YouTube）を登録すると「動画で練習」が出る。再生位置に合わせて演奏中の行を強調し、自動でスクロールする
+- 同期データの記録: 動画を流しながら、行の歌い出しで「記録」（またはスペースキー）を押す。行ごと・全体を 0.1 秒単位で直せる
+- 区間ループ（A–B 点、またはセクション見出しを押す）、再生速度の変更
+- コード図を押すとコードが鳴る（ギター／ピアノ）。メトロノーム（曲の BPM・拍子から始まる）
+
 データはまず端末内（IndexedDB）に保存し、ログインしているときだけサーバーと同期します。同期先が未設定でも端末内だけで動きます。
 
 ## 同期の設定（Supabase）
 
-1. Supabase のプロジェクトを作り、`supabase/migrations/` の SQL を適用する
+1. Supabase のプロジェクトを作り、`supabase/migrations/` の SQL を古い順にすべて適用する（ステップ 1-3 で `20261020000000_practice.sql` を追加）
 2. 自分のメールアドレスを許可リストに登録する: `insert into public.allowed_emails values ('you@example.com');`
 3. Authentication → URL Configuration の Site URL / Redirect URLs に、アプリの URL（本番は `https://hikeru.app`。Redirect URLs には `https://hikeru.app/settings`）を登録する
 4. `.env.example` を参考に `NEXT_PUBLIC_SUPABASE_URL` と `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` を設定する（Vercel では Environment Variables）

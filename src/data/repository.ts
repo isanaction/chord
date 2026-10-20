@@ -6,7 +6,9 @@ import {
   type SheetRevision,
   type Song,
   type SourceKind,
+  type SyncCue,
   type SyncTable,
+  type SyncTrack,
   type UserSheetSettings,
 } from './db';
 
@@ -68,7 +70,7 @@ function requireTitle(meta: SheetMeta) {
   if (!meta.title?.trim()) throw new ValidationError('曲名を入力してください');
 }
 
-const WRITE_TABLES = (db: ChordDB) => [db.songs, db.sheets, db.sheetRevisions, db.userSheetSettings, db.outbox];
+const WRITE_TABLES = (db: ChordDB) => [db.songs, db.sheets, db.sheetRevisions, db.syncTracks, db.userSheetSettings, db.outbox];
 
 export async function createSheet(input: NewSheetInput): Promise<string> {
   requireTitle(input.meta);
@@ -263,6 +265,54 @@ export async function saveSettings(
   });
 }
 
+/** 譜面と動画の組の同期データ（自分のもの・削除されていないもの）。複数あれば最新 */
+export async function findSyncTrack(sheetId: string, videoId: string): Promise<SyncTrack | null> {
+  const user = currentUserId();
+  const tracks = await getDB().syncTracks.where('sheetId').equals(sheetId).toArray();
+  const mine = tracks
+    .filter((t) => t.ownerId === user && t.videoId === videoId && !t.deletedAt)
+    .sort((a, b) => b.updatedAt - a.updatedAt);
+  return mine[0] ?? null;
+}
+
+/** 同期データを作る（F-PRAC-02）。最初の時刻を記録するときに呼ぶ */
+export async function createSyncTrack(input: { sheetId: string; videoId: string; revisionId: string }): Promise<SyncTrack> {
+  const db = getDB();
+  const now = Date.now();
+  const track: SyncTrack = {
+    id: newId(),
+    sheetId: input.sheetId,
+    ownerId: currentUserId(),
+    provider: 'youtube',
+    videoId: input.videoId,
+    revisionId: input.revisionId,
+    cues: [],
+    offsetMs: 0,
+    createdAt: now,
+    updatedAt: now,
+  };
+  await db.transaction('rw', db.syncTracks, db.outbox, async () => {
+    await db.syncTracks.put(track);
+    await enqueue(db, 'syncTracks', track.id);
+  });
+  return track;
+}
+
+export async function updateSyncTrack(
+  id: string,
+  patch: { cues?: SyncCue[]; offsetMs?: number; revisionId?: string },
+): Promise<SyncTrack | null> {
+  const db = getDB();
+  return db.transaction('rw', db.syncTracks, db.outbox, async () => {
+    const current = await db.syncTracks.get(id);
+    if (!current) return null;
+    const next = { ...current, ...patch, updatedAt: Math.max(Date.now(), current.updatedAt + 1) };
+    await db.syncTracks.put(next);
+    await enqueue(db, 'syncTracks', id);
+    return next;
+  });
+}
+
 /**
  * ログインしたとき、未ログインの間に作ったデータをその利用者のものにして送信待ちに積む。
  * 同期より前に呼ぶ。
@@ -285,6 +335,11 @@ export async function adoptLocalData(userId: string): Promise<void> {
     for (const r of revisions) {
       await db.sheetRevisions.update(r.id, { createdBy: userId });
       await enqueue(db, 'sheetRevisions', r.id);
+    }
+    const tracks = await db.syncTracks.where('ownerId').equals(LOCAL_USER_ID).toArray();
+    for (const t of tracks) {
+      await db.syncTracks.update(t.id, { ownerId: userId, updatedAt: now });
+      await enqueue(db, 'syncTracks', t.id);
     }
     const settings = await db.userSheetSettings.where('userId').equals(LOCAL_USER_ID).toArray();
     for (const s of settings) {
