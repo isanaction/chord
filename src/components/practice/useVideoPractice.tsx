@@ -150,28 +150,50 @@ export function useVideoPractice({ sheetId, revisionId, body, videoId, settings,
     [body, track],
   );
 
-  const saveCues = useCallback(
-    async (next: SyncTrack['cues'], extra: { offsetMs?: number } = {}) => {
-      let base = track;
-      if (!base) {
-        if (!videoId) return;
-        base = await createSyncTrack({ sheetId, videoId, revisionId });
-        if (settings.syncTrackId !== base.id) update({ syncTrackId: base.id });
-      }
-      const saved = await updateSyncTrack(base.id, { cues: next, revisionId, ...extra });
-      if (saved) setLocal(saved);
+  /*
+   * 同期データの変更は1つずつ順に、直前に保存した内容に対して行う。
+   * 「記録」を続けて押したときに、保存が終わる前の古い内容から計算して時刻が消えたり、
+   * 最初の記録で同期データが2つできたりしないようにする。
+   */
+  const latest = useRef<SyncTrack | null>(null);
+  const queue = useRef<Promise<void>>(Promise.resolve());
+  useEffect(() => {
+    const l = latest.current;
+    const sameTarget = l?.sheetId === sheetId && l.videoId === videoId;
+    if (!sameTarget) latest.current = track;
+    else if (track && track.id === l!.id && track.updatedAt > l!.updatedAt) latest.current = track;
+  }, [track, sheetId, videoId]);
+
+  const mutateTrack = useCallback(
+    (change: (base: { cues: SyncTrack['cues']; offsetMs: number }) => { cues?: SyncTrack['cues']; offsetMs?: number }) => {
+      queue.current = queue.current
+        .then(async () => {
+          let base = latest.current?.sheetId === sheetId && latest.current.videoId === videoId ? latest.current : null;
+          if (!base) {
+            if (!videoId) return;
+            base = await createSyncTrack({ sheetId, videoId, revisionId });
+            if (settings.syncTrackId !== base.id) update({ syncTrackId: base.id });
+          }
+          const saved = await updateSyncTrack(base.id, { ...change(base), revisionId });
+          if (saved) {
+            latest.current = saved;
+            setLocal(saved);
+          }
+        })
+        .catch((e) => console.error('同期データを保存できませんでした', e));
     },
-    [track, videoId, sheetId, revisionId, settings.syncTrackId, update],
+    [videoId, sheetId, revisionId, settings.syncTrackId, update],
   );
 
   const recordNow = useCallback(() => {
     const lineId = pendingLineId ?? nextLineId(body, null);
     if (!lineId) return;
-    // 補正を引いて保存し、補正込みで今の位置に来るようにする
-    void saveCues(recordCue(track?.cues ?? [], lineId, currentMs() - offsetMs));
+    // 押した瞬間の位置を記録する。補正を引いて保存し、補正込みで今の位置に来るようにする
+    const t = currentMs();
+    mutateTrack((base) => ({ cues: recordCue(base.cues, lineId, t - base.offsetMs) }));
     setSelectedLineId(lineId);
     setPendingLineId(nextLineId(body, lineId));
-  }, [pendingLineId, body, saveCues, track, currentMs, offsetMs]);
+  }, [pendingLineId, body, mutateTrack, currentMs]);
 
   const cueOf = (lineId: string | null) => (lineId ? (track?.cues ?? []).find((c) => c.lineId === lineId) : undefined);
 
@@ -251,14 +273,14 @@ export function useVideoPractice({ sheetId, revisionId, body, videoId, settings,
   const nudgeSelected = useCallback(
     (deltaMs: number) => {
       if (!selectedLineId || !track) return;
-      void saveCues(nudgeCue(track.cues, selectedLineId, deltaMs));
+      mutateTrack((base) => ({ cues: nudgeCue(base.cues, selectedLineId, deltaMs) }));
     },
-    [selectedLineId, track, saveCues],
+    [selectedLineId, track, mutateTrack],
   );
   const removeSelected = useCallback(() => {
     if (!selectedLineId || !track) return;
-    void saveCues(removeCue(track.cues, selectedLineId));
-  }, [selectedLineId, track, saveCues]);
+    mutateTrack((base) => ({ cues: removeCue(base.cues, selectedLineId) }));
+  }, [selectedLineId, track, mutateTrack]);
   const playFromSelected = useCallback(() => {
     const cue = (track?.cues ?? []).find((c) => c.lineId === selectedLineId);
     if (!cue) return;
@@ -268,9 +290,9 @@ export function useVideoPractice({ sheetId, revisionId, body, videoId, settings,
   const nudgeOffset = useCallback(
     (deltaMs: number) => {
       if (!track) return;
-      void saveCues(track.cues, { offsetMs: offsetMs + deltaMs });
+      mutateTrack((base) => ({ offsetMs: base.offsetMs + deltaMs }));
     },
-    [track, saveCues, offsetMs],
+    [track, mutateTrack],
   );
 
   return {
