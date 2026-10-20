@@ -1,7 +1,7 @@
 'use client';
 
 import { midiToHz } from '@/domain/chord/voicing';
-import { beatsBetween } from '@/domain/sync/meter';
+import { type BeatClock, takeBeats } from '@/domain/sync/meter';
 
 /**
  * 音の再生（設計書 7.4）。Web Audio API で合成する。
@@ -91,8 +91,7 @@ const TICK_MS = 25;
  */
 export class Metronome {
   private timer: ReturnType<typeof setInterval> | null = null;
-  private start = 0;
-  private scheduledUntil = 0;
+  private clock: BeatClock = { time: 0, index: 0 };
   private bpm = 120;
   private perBar = 4;
 
@@ -108,19 +107,18 @@ export class Metronome {
     this.stop();
     this.bpm = bpm;
     this.perBar = perBar;
-    this.start = c.currentTime + 0.05;
-    this.scheduledUntil = this.start;
+    this.clock = { time: c.currentTime + 0.05, index: 0 };
     this.tick(c);
     this.timer = setInterval(() => this.tick(c), TICK_MS);
   }
 
-  /** 鳴らしている途中のテンポ・拍子の変更。次の拍から反映する */
+  /**
+   * 鳴らしている途中のテンポ・拍子の変更。まだ予約していない拍から反映する。
+   * 鳴らし直さないので、余分なクリックが入ったり小節の頭に戻ったりしない
+   */
   update(bpm: number, perBar: number) {
-    if (this.running) this.play(bpm, perBar);
-    else {
-      this.bpm = bpm;
-      this.perBar = perBar;
-    }
+    this.bpm = bpm;
+    this.perBar = perBar;
   }
 
   stop() {
@@ -129,14 +127,14 @@ export class Metronome {
   }
 
   private tick(c: AudioContext) {
-    const until = c.currentTime + LOOKAHEAD_S;
-    for (const beat of beatsBetween(this.start, this.bpm, this.perBar, this.scheduledUntil, until)) {
+    const { beats, next } = takeBeats(this.clock, this.bpm, this.perBar, c.currentTime + LOOKAHEAD_S);
+    this.clock = next;
+    for (const beat of beats) {
       click(c, beat.time, beat.accent);
       if (this.onBeat) {
         const delay = Math.max(0, (beat.time - c.currentTime) * 1000);
         setTimeout(() => this.onBeat?.(beat.index, beat.accent), delay);
       }
     }
-    this.scheduledUntil = until;
   }
 }

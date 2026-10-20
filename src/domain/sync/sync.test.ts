@@ -13,7 +13,7 @@ import {
   untimedCount,
   usableCues,
 } from './cues';
-import { beatsBetween, beatsPerBar, clampBpm } from './meter';
+import { beatsPerBar, clampBpm, takeBeats } from './meter';
 import { parseStartSeconds, parseYouTubeId } from './youtube';
 
 const lyric = (id: string, text: string) => ({ id, kind: 'lyric' as const, segments: [{ text }] });
@@ -150,12 +150,24 @@ describe('メトロノーム', () => {
 
   it('先読みの範囲に入る拍と、小節の頭', () => {
     // 120 BPM = 0.5 秒ごと。3拍子
-    const beats = beatsBetween(10, 120, 3, 10.9, 12.1);
-    expect(beats.map((b) => [b.time, b.accent])).toEqual([
+    const first = takeBeats({ time: 10, index: 0 }, 120, 3, 11.1);
+    expect(first.beats.map((b) => [b.time, b.accent])).toEqual([
+      [10, true],
+      [10.5, false],
       [11, false],
-      [11.5, true],
-      [12, false],
     ]);
-    expect(beatsBetween(10, 120, 4, 10, 10.1)).toEqual([{ time: 10, index: 0, accent: true }]);
+    expect(first.next).toEqual({ time: 11.5, index: 3 });
+    // 予約済みの範囲は返さない
+    expect(takeBeats(first.next, 120, 3, 11.2).beats).toEqual([]);
+  });
+
+  it('途中でテンポを変えても、小節の何拍目かは続く', () => {
+    const before = takeBeats({ time: 0, index: 0 }, 120, 4, 0.9); // 0, 0.5
+    const after = takeBeats(before.next, 60, 4, 4); // 1 から 1 秒ごと
+    expect(after.beats.map((b) => [b.time, b.index, b.accent])).toEqual([
+      [1, 2, false],
+      [2, 3, false],
+      [3, 4, true],
+    ]);
   });
 });

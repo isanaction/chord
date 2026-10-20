@@ -30,6 +30,8 @@ type Args = {
   revisionId: string;
   body: SheetBody;
   videoId: string | null;
+  /** 参考動画の URL に書かれた開始位置（秒） */
+  startSeconds: number | null;
   settings: UserSheetSettings;
   update: (patch: Patch) => void;
   scrollRef: RefObject<HTMLDivElement | null>;
@@ -55,6 +57,8 @@ export type VideoPractice = {
   skip: (ms: number) => void;
   /** 記録モード: 次の行の時刻を今の再生位置で記録する */
   recordNow: () => void;
+  /** 記録モードで、最後の行まで記録し終えた */
+  recordFinished: boolean;
   selectedLineId: string | null;
   selectedTime: string | null;
   nudgeSelected: (deltaMs: number) => void;
@@ -67,11 +71,17 @@ export type VideoPractice = {
 };
 
 /** 動画に合わせた練習（F-PRAC-01〜04）。プレーヤー・同期データ・ループ・記録をまとめて扱う */
-export function useVideoPractice({ sheetId, revisionId, body, videoId, settings, update, scrollRef, videoRef }: Args): VideoPractice {
-  const rate = settings.playbackRate ?? 1;
-  const player = useYouTubePlayer(videoRef, videoId, rate);
+export function useVideoPractice({ sheetId, revisionId, body, videoId, startSeconds, settings, update, scrollRef, videoRef }: Args): VideoPractice {
+  const savedRate = settings.playbackRate ?? 1;
+  const player = useYouTubePlayer(videoRef, videoId, savedRate, startSeconds);
+  // 保存した速度にこの動画が対応していなければ、プレーヤーが実際に使う速度を表示・計算に使う
+  const rate = player.ready ? player.rate : savedRate;
 
-  const stored = useLiveQuery(() => (videoId ? findSyncTrack(sheetId, videoId) : null), [sheetId, videoId]);
+  const preferredTrackId = settings.syncTrackId;
+  const stored = useLiveQuery(
+    () => (videoId ? findSyncTrack(sheetId, videoId, preferredTrackId) : null),
+    [sheetId, videoId, preferredTrackId],
+  );
   // 作った直後は useLiveQuery の結果がまだ古いので、手元の値を優先する
   const [local, setLocal] = useState<SyncTrack | null>(null);
   const mine = local?.sheetId === sheetId && local.videoId === videoId ? local : null;
@@ -186,7 +196,8 @@ export function useVideoPractice({ sheetId, revisionId, body, videoId, settings,
   );
 
   const recordNow = useCallback(() => {
-    const lineId = pendingLineId ?? nextLineId(body, null);
+    // 最後の行まで記録したら止まる（続けて押しても先頭の行の時刻を上書きしない）。行を押すとそこから記録を再開できる
+    const lineId = pendingLineId;
     if (!lineId) return;
     // 押した瞬間の位置を記録する。補正を引いて保存し、補正込みで今の位置に来るようにする
     const t = currentMs();
@@ -317,6 +328,7 @@ export function useVideoPractice({ sheetId, revisionId, body, videoId, settings,
     togglePlay,
     skip,
     recordNow,
+    recordFinished: mode === 'record' && pendingLineId === null,
     selectedLineId,
     selectedTime: selected ? formatTime(selected.t + offsetMs) : null,
     nudgeSelected,

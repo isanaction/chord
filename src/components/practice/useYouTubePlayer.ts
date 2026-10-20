@@ -81,6 +81,8 @@ export type PlayerControl = {
   playing: boolean;
   error: string | null;
   rates: number[];
+  /** 実際に使っている再生速度。保存した速度にこの動画が対応していなければ、近い速度になる */
+  rate: number;
   /** 動画の長さ（ミリ秒）。分からなければ null */
   durationMs: number | null;
   /** 今の再生位置（ミリ秒）。間はこちらの時計で補う（設計書 7.1） */
@@ -91,19 +93,36 @@ export type PlayerControl = {
   setRate(rate: number): void;
 };
 
-/** container の中に YouTube プレーヤーを作る。videoId が変わると作り直す */
-export function useYouTubePlayer(container: RefObject<HTMLDivElement | null>, videoId: string | null, rate: number): PlayerControl {
+/** 対応している速度のうち、指定に最も近いもの */
+export function nearestRate(available: number[], rate: number): number {
+  if (available.length === 0) return rate;
+  return available.reduce((best, r) => (Math.abs(r - rate) < Math.abs(best - rate) ? r : best), available[0]);
+}
+
+/**
+ * container の中に YouTube プレーヤーを作る。videoId が変わると作り直す。
+ * startSeconds は参考動画の URL に書かれた開始位置（t= / start=）
+ */
+export function useYouTubePlayer(
+  container: RefObject<HTMLDivElement | null>,
+  videoId: string | null,
+  rate: number,
+  startSeconds: number | null = null,
+): PlayerControl {
   const player = useRef<YTPlayer | null>(null);
   const [ready, setReady] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rates, setRates] = useState<number[]>(FALLBACK_RATES);
   const [durationMs, setDurationMs] = useState<number | null>(null);
+  const [appliedRate, setAppliedRate] = useState(rate);
   // getCurrentTime は細かく更新されないことがあるので、最後に読んだ値と時刻から補う
   const clock = useRef({ reported: 0, at: 0, rate: 1, playing: false });
   const rateRef = useRef(rate);
+  const startRef = useRef(startSeconds);
   useEffect(() => {
     rateRef.current = rate;
+    startRef.current = startSeconds;
   });
 
   useEffect(() => {
@@ -119,15 +138,19 @@ export function useYouTubePlayer(container: RefObject<HTMLDivElement | null>, vi
           videoId,
           width: '100%',
           height: '100%',
-          playerVars: { playsinline: 1, rel: 0, modestbranding: 1 },
+          playerVars: { playsinline: 1, rel: 0, modestbranding: 1, ...(startRef.current ? { start: startRef.current } : {}) },
           events: {
             onReady: () => {
               if (cancelled) return;
               const p = player.current!;
               const available = p.getAvailablePlaybackRates();
-              setRates(available.length > 0 ? available : FALLBACK_RATES);
-              p.setPlaybackRate(rateRef.current);
-              clock.current.rate = rateRef.current;
+              const list = available.length > 0 ? available : FALLBACK_RATES;
+              setRates(list);
+              // 対応していない速度を指定しても YouTube は無視するので、対応している速度に合わせる
+              const r = nearestRate(list, rateRef.current);
+              p.setPlaybackRate(r);
+              clock.current.rate = r;
+              setAppliedRate(r);
               const d = p.getDuration();
               setDurationMs(d > 0 ? d * 1000 : null);
               setReady(true);
@@ -182,7 +205,8 @@ export function useYouTubePlayer(container: RefObject<HTMLDivElement | null>, vi
   const setRate = useCallback((r: number) => {
     player.current?.setPlaybackRate(r);
     clock.current = { ...clock.current, rate: r };
+    setAppliedRate(r);
   }, []);
 
-  return { ready, playing, error, rates, durationMs, currentMs, seek, play, pause, setRate };
+  return { ready, playing, error, rates, rate: appliedRate, durationMs, currentMs, seek, play, pause, setRate };
 }
