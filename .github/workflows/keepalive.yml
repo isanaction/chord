@@ -13,13 +13,11 @@ jobs:
     steps:
       - name: Query Supabase
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          # URL と publishable key はブラウザにも配る公開の値なので、本番の値を既定にする。
+          # 別のプロジェクトに向けるときは Secrets で上書きする
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || 'https://hceczmfxhufuuxkxvmyu.supabase.co' }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_DhjZJ2Xa9vCc0ESwlGcGrg_Y0iVwGvs' }}
         run: |
-          # 未設定のまま成功扱いにすると、止まっていることに気付けない（実際に一時停止した）。失敗させて知らせる
-          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_PUBLISHABLE_KEY" ]; then
-            echo "::error::GitHub の Secrets に SUPABASE_URL と SUPABASE_PUBLISHABLE_KEY を登録してください（README「同期の設定」5）"
-            exit 1
-          fi
           curl -fsS "$SUPABASE_URL/rest/v1/allowed_emails?select=email&limit=1" \
             -H "apikey: $SUPABASE_PUBLISHABLE_KEY" -o /dev/null
+          echo "Supabase に問い合わせました"
