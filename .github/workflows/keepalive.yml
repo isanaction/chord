@@ -16,9 +16,10 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
         run: |
+          # 未設定のまま成功扱いにすると、止まっていることに気付けない（実際に一時停止した）。失敗させて知らせる
           if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_PUBLISHABLE_KEY" ]; then
-            echo "Supabase のシークレットが未設定のため、何もしません"
-            exit 0
+            echo "::error::GitHub の Secrets に SUPABASE_URL と SUPABASE_PUBLISHABLE_KEY を登録してください（README「同期の設定」5）"
+            exit 1
           fi
           curl -fsS "$SUPABASE_URL/rest/v1/allowed_emails?select=email&limit=1" \
             -H "apikey: $SUPABASE_PUBLISHABLE_KEY" -o /dev/null
