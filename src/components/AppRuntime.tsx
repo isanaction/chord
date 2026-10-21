@@ -1,11 +1,13 @@
 'use client';
 
 import { useEffect } from 'react';
+import { startBilling } from '@/data/billing';
 import { startSync } from '@/data/sync/controller';
 
-/** 画面には何も出さず、同期とオフライン用の Service Worker を起動する */
+/** 画面には何も出さず、同期・有料プランの状態・オフライン用の Service Worker を起動する */
 export function AppRuntime() {
   useEffect(() => startSync(), []);
+  useEffect(() => startBilling(), []);
 
   useEffect(() => {
     if (process.env.NODE_ENV !== 'production' || !('serviceWorker' in navigator)) return;

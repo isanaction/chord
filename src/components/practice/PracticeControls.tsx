@@ -1,6 +1,8 @@
 'use client';
 
+import Link from 'next/link';
 import type { RefObject } from 'react';
+import { FREE_PRACTICE_SHEETS_PER_DAY } from '@/domain/plan';
 import { formatTime } from '@/domain/sync/cues';
 import { IconFaster, IconPause, IconPlay, IconSlower } from '../icons';
 import type { VideoPractice } from './useVideoPractice';
@@ -87,6 +89,19 @@ export function PracticeBar({ practice, onClose }: { practice: VideoPractice; on
   const loopLabel = p.loop ? `ループ ${p.loop.label}` : p.loopDraftA !== null ? `A ${formatTime(p.loopDraftA)} → B を押す` : null;
   return (
     <nav aria-label="動画練習の操作" className="shrink-0 border-t border-line bg-surface px-3 pt-2 pb-[max(16px,env(safe-area-inset-bottom))]">
+      {p.limitReached && (
+        <div role="status" className="mb-2 flex items-start gap-2 rounded-xl border border-accent-border bg-accent-soft px-3 py-2 text-xs leading-5">
+          <p className="flex-1">
+            無料プランで区間ループ・速度変更を使えるのは、1日 {FREE_PRACTICE_SHEETS_PER_DAY} 曲までです。今日使った曲では引き続き使えます。{' '}
+            <Link href="/pricing" className="text-accent underline">
+              有料プランを見る
+            </Link>
+          </p>
+          <button onClick={p.dismissLimit} aria-label="お知らせを閉じる" className="px-1 text-text-2">
+            ×
+          </button>
+        </div>
+      )}
       <div className="flex min-h-8 flex-wrap items-center gap-x-3 gap-y-1 px-1 pb-1.5 text-xs text-text-2">
         <span className="font-chord">
           {formatTime(p.nowMs)}

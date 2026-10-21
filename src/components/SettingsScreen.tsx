@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { BackupFormatError, exportAll, importAll, parseBackup } from '@/data/backup';
+import { openBillingPortal, refreshPlan, usePlan } from '@/data/billing';
 import { currentUserId } from '@/data/repository';
 import { requestSync, sendLoginLink, signOut, useSyncStatus } from '@/data/sync/controller';
 import { useTheme } from '@/lib/theme';
@@ -16,6 +17,26 @@ export function SettingsScreen() {
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const plan = usePlan();
+
+  // 決済画面から戻ってきたとき。購読の記録は Stripe からの通知で少し遅れて届くので、何度か読み直す
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('billing') !== 'success') return;
+    window.history.replaceState(null, '', '/settings');
+    const show = window.setTimeout(() => setMessage('お申し込みありがとうございます。有料プランの機能が使えるようになりました。'), 0);
+    const timers = [2000, 5000, 10000].map((ms) => window.setTimeout(() => void refreshPlan(), ms));
+    return () => [show, ...timers].forEach((t) => window.clearTimeout(t));
+  }, []);
+
+  const manage = async () => {
+    setMessage(null);
+    try {
+      await openBillingPortal();
+    } catch (err) {
+      setMessage((err as Error).message);
+    }
+  };
 
   const login = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -130,6 +151,33 @@ export function SettingsScreen() {
         )}
       </Section>
 
+      {plan.billingEnabled && signedIn && (
+        <Section title="プラン">
+          <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+            <dt className="text-text-2">プラン</dt>
+            <dd>{plan.loading && !plan.subscription ? '確認中…' : plan.plan === 'premium' ? `有料プラン（${plan.subscription?.interval === 'year' ? '年額' : plan.subscription?.interval === 'month' ? '月額' : '特典'}）` : '無料プラン'}</dd>
+            {plan.plan === 'premium' && plan.subscription?.currentPeriodEnd && (
+              <>
+                <dt className="text-text-2">{plan.subscription.cancelAtPeriodEnd ? '終了日' : '次回更新日'}</dt>
+                <dd>{new Date(plan.subscription.currentPeriodEnd).toLocaleDateString('ja-JP')}</dd>
+              </>
+            )}
+          </dl>
+          <div className="flex flex-wrap gap-2">
+            {plan.plan !== 'premium' && (
+              <Link href="/pricing" className="flex h-10 items-center rounded-[10px] bg-accent-fill px-4 text-sm font-bold text-on-accent">
+                有料プランを見る
+              </Link>
+            )}
+            {plan.subscription && (
+              <button onClick={() => void manage()} className="h-10 rounded-[10px] border border-line-strong bg-surface-2 px-4 text-sm">
+                プランを管理（支払い方法・領収書・解約）
+              </button>
+            )}
+          </div>
+        </Section>
+      )}
+
       <Section title="データ">
         <p className="text-sm leading-7 text-text-2">すべての譜面と設定を JSON で書き出せます。バックアップや別の端末への移動に使えます。</p>
         <div className="flex flex-wrap gap-2">
@@ -171,6 +219,21 @@ export function SettingsScreen() {
           Web ページから取り込む方法（ブックマークレット）
         </Link>
       </Section>
+
+      <nav aria-label="このサービスについて" className="flex flex-wrap gap-x-4 gap-y-1 px-1 text-xs text-text-2">
+        <Link href="/pricing" className="underline">
+          料金プラン
+        </Link>
+        <Link href="/terms" className="underline">
+          利用規約
+        </Link>
+        <Link href="/privacy" className="underline">
+          プライバシーポリシー
+        </Link>
+        <Link href="/legal" className="underline">
+          特定商取引法に基づく表記
+        </Link>
+      </nav>
     </main>
   );
 }

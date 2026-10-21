@@ -2,6 +2,7 @@
 
 import { useLiveQuery } from 'dexie-react-hooks';
 import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { claimPracticeToolsFor } from '@/data/billing';
 import type { LoopRange, SyncTrack, UserSheetSettings } from '@/data/db';
 import { createSyncTrack, findSyncTrack, updateSyncTrack } from '@/data/repository';
 import type { SheetBody } from '@/domain/sheet/types';
@@ -53,6 +54,9 @@ export type VideoPractice = {
   clearLoop: () => void;
   rate: number;
   changeRate: (dir: -1 | 1) => void;
+  /** 無料プランで、区間ループ・速度変更を使える曲数を今日は使い切った */
+  limitReached: boolean;
+  dismissLimit: () => void;
   togglePlay: () => void;
   skip: (ms: number) => void;
   /** 記録モード: 次の行の時刻を今の再生位置で記録する */
@@ -95,6 +99,14 @@ export function useVideoPractice({ sheetId, revisionId, body, videoId, startSeco
   const [selectedLineId, setSelectedLineId] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState(0);
   const [loopDraftA, setLoopDraftA] = useState<number | null>(null);
+  const [limitReached, setLimitReached] = useState(false);
+  // 区間ループ・速度変更を使い始めるとき（解除するときは数えない）
+  const allowTools = useCallback(() => {
+    if (claimPracticeToolsFor(sheetId)) return true;
+    setLimitReached(true);
+    return false;
+  }, [sheetId]);
+  const dismissLimit = useCallback(() => setLimitReached(false), []);
 
   const range = useMemo(
     () => resolveLoop(settings.loop as LoopRange | undefined, body, cues, offsetMs, player.durationMs),
@@ -226,10 +238,11 @@ export function useVideoPractice({ sheetId, revisionId, body, videoId, startSeco
     (sectionId: string) => {
       const current = settings.loop;
       const same = current && 'sectionId' in current && current.sectionId === sectionId;
+      if (!same && !allowTools()) return;
       setLoopDraftA(null);
       update({ loop: same ? undefined : { sectionId } });
     },
-    [settings.loop, update],
+    [settings.loop, update, allowTools],
   );
 
   const lineTimes = useMemo(() => {
@@ -253,12 +266,12 @@ export function useVideoPractice({ sheetId, revisionId, body, videoId, startSeco
       update({ loop: undefined });
       setLoopDraftA(null);
     } else if (loopDraftA === null) {
-      setLoopDraftA(t);
+      if (allowTools()) setLoopDraftA(t);
     } else if (t > loopDraftA + 500) {
       update({ loop: { a: loopDraftA, b: t } });
       setLoopDraftA(null);
     }
-  }, [currentMs, settings.loop, loopDraftA, update]);
+  }, [currentMs, settings.loop, loopDraftA, update, allowTools]);
 
   const clearLoop = useCallback(() => {
     update({ loop: undefined });
@@ -271,10 +284,12 @@ export function useVideoPractice({ sheetId, revisionId, body, videoId, startSeco
       const i = list.findIndex((r) => r >= rate - 1e-6);
       const next = list[Math.min(list.length - 1, Math.max(0, (i < 0 ? list.length - 1 : i) + dir))];
       if (next === undefined || next === rate) return;
+      // 1倍に戻すのは数えない
+      if (next !== 1 && !allowTools()) return;
       player.setRate(next);
       update({ playbackRate: next });
     },
-    [player, rate, update],
+    [player, rate, update, allowTools],
   );
 
   const togglePlay = useCallback(() => (player.playing ? player.pause() : player.play()), [player]);
@@ -325,6 +340,8 @@ export function useVideoPractice({ sheetId, revisionId, body, videoId, startSeco
     clearLoop,
     rate,
     changeRate,
+    limitReached,
+    dismissLimit,
     togglePlay,
     skip,
     recordNow,
