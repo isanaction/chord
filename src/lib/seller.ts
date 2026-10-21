@@ -11,7 +11,7 @@ export const SELLER = {
   representative: '【運営責任者名を記入】',
   address: '請求があった場合、遅滞なく開示します',
   phone: '請求があった場合、遅滞なく開示します',
-  email: '【問い合わせ用メールアドレスを記入】',
+  email: 'info@alterism.co.jp',
   /** 規約類を定めた日（YYYY年M月D日） */
   effectiveDate: '2026年10月21日',
 } as const;
