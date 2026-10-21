@@ -38,6 +38,8 @@ export async function POST(request: Request) {
     metadata: { user_id: user.id },
     subscription_data: { metadata: { user_id: user.id } },
     locale: 'ja',
+    // 販売者は当社（/legal）。Stripe が販売者になる Managed Payments がアカウントで既定になっていても使わない
+    managed_payments: { enabled: false },
     success_url: `${origin}/settings?billing=success`,
     cancel_url: `${origin}/pricing`,
   });
