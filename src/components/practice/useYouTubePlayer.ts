@@ -14,6 +14,7 @@ type YTPlayer = {
   getDuration(): number;
   getPlayerState(): number;
   setPlaybackRate(rate: number): void;
+  getPlaybackRate(): number;
   getAvailablePlaybackRates(): number[];
   destroy(): void;
 };
@@ -29,6 +30,7 @@ type YTNamespace = {
       events?: {
         onReady?: () => void;
         onStateChange?: (e: { data: number }) => void;
+        onPlaybackRateChange?: (e: { data: number }) => void;
         onError?: (e: { data: number }) => void;
       };
     },
@@ -81,7 +83,7 @@ export type PlayerControl = {
   playing: boolean;
   error: string | null;
   rates: number[];
-  /** 実際に使っている再生速度。保存した速度にこの動画が対応していなければ、近い速度になる */
+  /** 実際に使っている再生速度（YouTube が知らせた値）。保存した速度にこの動画が対応していなければ、近い速度になる */
   rate: number;
   /** 動画の長さ（ミリ秒）。分からなければ null */
   durationMs: number | null;
@@ -125,6 +127,14 @@ export function useYouTubePlayer(
     startRef.current = startSeconds;
   });
 
+  // 速度が変わる前の位置までは前の速度で進んだので、そこで時計を区切ってから速度を替える
+  const applyRate = useCallback((r: number) => {
+    const p = player.current;
+    if (p) clock.current = { ...clock.current, reported: p.getCurrentTime() * 1000, at: performance.now() };
+    clock.current.rate = r;
+    setAppliedRate(r);
+  }, []);
+
   useEffect(() => {
     const el = container.current;
     if (!el || !videoId) return;
@@ -146,11 +156,10 @@ export function useYouTubePlayer(
               const available = p.getAvailablePlaybackRates();
               const list = available.length > 0 ? available : FALLBACK_RATES;
               setRates(list);
-              // 対応していない速度を指定しても YouTube は無視するので、対応している速度に合わせる
-              const r = nearestRate(list, rateRef.current);
-              p.setPlaybackRate(r);
-              clock.current.rate = r;
-              setAppliedRate(r);
+              applyRate(p.getPlaybackRate());
+              // 対応していない速度を指定しても YouTube は無視するので、対応している速度に合わせる。
+              // 実際に変わったかは onPlaybackRateChange で受け取る
+              p.setPlaybackRate(nearestRate(list, rateRef.current));
               const d = p.getDuration();
               setDurationMs(d > 0 ? d * 1000 : null);
               setReady(true);
@@ -164,6 +173,8 @@ export function useYouTubePlayer(
               const d = p.getDuration();
               if (d > 0) setDurationMs(d * 1000);
             },
+            // こちらから変えたときも、プレーヤーの歯車メニューで変えたときも届く
+            onPlaybackRateChange: (e) => applyRate(e.data),
             onError: (e) => setError(ERRORS[e.data] ?? '動画を再生できませんでした'),
           },
         });
@@ -178,7 +189,7 @@ export function useYouTubePlayer(
       setPlaying(false);
       setError(null);
     };
-  }, [container, videoId]);
+  }, [container, videoId, applyRate]);
 
   const currentMs = useCallback(() => {
     const p = player.current;
@@ -202,11 +213,8 @@ export function useYouTubePlayer(
 
   const play = useCallback(() => player.current?.playVideo(), []);
   const pause = useCallback(() => player.current?.pauseVideo(), []);
-  const setRate = useCallback((r: number) => {
-    player.current?.setPlaybackRate(r);
-    clock.current = { ...clock.current, rate: r };
-    setAppliedRate(r);
-  }, []);
+  /** setPlaybackRate は速度が変わることを保証しない（API リファレンス）ので、表示と時計は onPlaybackRateChange で合わせる */
+  const setRate = useCallback((r: number) => player.current?.setPlaybackRate(r), []);
 
   return { ready, playing, error, rates, rate: appliedRate, durationMs, currentMs, seek, play, pause, setRate };
 }

@@ -150,24 +150,38 @@ describe('メトロノーム', () => {
 
   it('先読みの範囲に入る拍と、小節の頭', () => {
     // 120 BPM = 0.5 秒ごと。3拍子
-    const first = takeBeats({ time: 10, index: 0 }, 120, 3, 11.1);
+    const first = takeBeats({ last: null, index: 0 }, 120, 3, 10, 11.1);
     expect(first.beats.map((b) => [b.time, b.accent])).toEqual([
       [10, true],
       [10.5, false],
       [11, false],
     ]);
-    expect(first.next).toEqual({ time: 11.5, index: 3 });
+    expect(first.next).toEqual({ last: 11, index: 3 });
     // 予約済みの範囲は返さない
-    expect(takeBeats(first.next, 120, 3, 11.2).beats).toEqual([]);
+    expect(takeBeats(first.next, 120, 3, 10.05, 11.2).beats).toEqual([]);
   });
 
   it('途中でテンポを変えても、小節の何拍目かは続く', () => {
-    const before = takeBeats({ time: 0, index: 0 }, 120, 4, 0.9); // 0, 0.5
-    const after = takeBeats(before.next, 60, 4, 4); // 1 から 1 秒ごと
+    const before = takeBeats({ last: null, index: 0 }, 120, 4, 0, 0.9); // 0, 0.5
+    const after = takeBeats(before.next, 60, 4, 0.8, 4); // 0.5 の次から 1 秒ごと
     expect(after.beats.map((b) => [b.time, b.index, b.accent])).toEqual([
-      [1, 2, false],
-      [2, 3, false],
-      [3, 4, true],
+      [1.5, 2, false],
+      [2.5, 3, false],
+      [3.5, 4, true],
     ]);
+  });
+
+  it('テンポを上げると、次の拍から新しい間隔になる', () => {
+    // 30 BPM（2 秒ごと）で 0 秒に鳴らした直後に 300 BPM（0.2 秒ごと）へ
+    const before = takeBeats({ last: null, index: 0 }, 30, 4, 0, 0.15);
+    const after = takeBeats(before.next, 300, 4, 0.1, 0.5);
+    expect(after.beats.map((b) => b.time)).toEqual([0.2, 0.4]);
+  });
+
+  it('次の拍がもう過ぎていれば、今から鳴らす（過ぎた拍をまとめて鳴らさない）', () => {
+    // 30 BPM で 0 秒に鳴らし、1.9 秒後に 300 BPM へ
+    const before = takeBeats({ last: null, index: 0 }, 30, 4, 0, 0.15);
+    const after = takeBeats(before.next, 300, 4, 1.95, 2.05);
+    expect(after.beats.map((b) => [b.time, b.index])).toEqual([[1.95, 1]]);
   });
 });

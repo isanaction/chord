@@ -25,7 +25,13 @@ const FAKE_IFRAME_API = `
     self.playVideo = () => { base = now(); since = performance.now(); playing = true; state(1); };
     self.pauseVideo = () => { base = now(); playing = false; state(2); };
     self.seekTo = (s) => { base = s; since = performance.now(); };
-    self.setPlaybackRate = (r) => { base = now(); since = performance.now(); rate = r; window.__video.rate = r; };
+    self.getPlaybackRate = () => rate;
+    // 本物と同じく、対応していない速度は無視し、変わったときだけ知らせる
+    self.setPlaybackRate = (r) => {
+      if (!self.getAvailablePlaybackRates().includes(r) || r === rate) return;
+      base = now(); since = performance.now(); rate = r; window.__video.rate = r;
+      setTimeout(() => opts.events && opts.events.onPlaybackRateChange && opts.events.onPlaybackRateChange({ data: r }), 0);
+    };
     self.destroy = () => box.remove();
     window.__video = { player: self, rate, seek: (s) => self.seekTo(s), now };
     setTimeout(() => opts.events && opts.events.onReady && opts.events.onReady(), 0);
@@ -145,6 +151,10 @@ test('動画に合わせて同期を記録し、再生位置の行が追いか�
   // 記録した同期データも残っている
   await seekVideo(page, 7);
   await expect(line('ふたつめの')).toHaveAttribute('aria-current', 'true');
+
+  // プレーヤー自身のメニューで速度を変えても、表示が実際の速度に合う
+  await page.evaluate(() => (window as unknown as { __video: { player: { setPlaybackRate(r: number): void } } }).__video.player.setPlaybackRate(1.25));
+  await expect(page.getByText('速度 ×1.25')).toBeVisible();
 });
 
 test('コード図を押すとコードが鳴り、メトロノームは曲の BPM から始まる', async ({ page }) => {

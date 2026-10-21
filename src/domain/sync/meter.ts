@@ -12,22 +12,31 @@ export function clampBpm(bpm: number): number {
   return Math.min(MAX_BPM, Math.max(MIN_BPM, Math.round(bpm)));
 }
 
-/** 次に鳴らす拍（時刻は秒、index は鳴らし始めからの拍の通し番号） */
-export type BeatClock = { time: number; index: number };
+/** 最後に予約した拍の時刻（まだなければ null）と、次の拍の通し番号（鳴らし始めから数える） */
+export type BeatClock = { last: number | null; index: number };
 
 /**
  * メトロノームの拍を先読みして予約するための計算（設計書 7.4）。
- * until より前の拍を返し、その次の拍を next として返す。
- * テンポを変えても next から新しい間隔で続けるので、拍の位置（小節の何拍目か）はずれない。
+ * from 以降 until より前の拍を返す。次の拍の時刻は、最後に予約した拍から今のテンポで決める。
+ * テンポを変えると次の拍から新しい間隔になり、拍の位置（小節の何拍目か）はずれない。
+ * 次の拍が from より前になるとき（テンポを大きく上げた、画面が裏に回って予約が遅れた）は from から鳴らす。
  */
-export function takeBeats(clock: BeatClock, bpm: number, perBar: number, until: number): { beats: { time: number; index: number; accent: boolean }[]; next: BeatClock } {
+export function takeBeats(
+  clock: BeatClock,
+  bpm: number,
+  perBar: number,
+  from: number,
+  until: number,
+): { beats: { time: number; index: number; accent: boolean }[]; next: BeatClock } {
   const interval = 60 / bpm;
   const beats: { time: number; index: number; accent: boolean }[] = [];
-  let { time, index } = clock;
+  let { last, index } = clock;
+  let time = last === null ? from : Math.max(from, last + interval);
   while (time < until) {
     beats.push({ time, index, accent: index % perBar === 0 });
+    last = time;
     time += interval;
     index++;
   }
-  return { beats, next: { time, index } };
+  return { beats, next: { last, index } };
 }
