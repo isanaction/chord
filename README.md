@@ -47,7 +47,7 @@
 
 1. `supabase/migrations/20261021000000_billing.sql` を適用する（`subscriptions` テーブル）
 2. Vercel を Pro プランにする（Hobby は非商用に限られる）
-3. `src/lib/seller.ts` の事業者情報（販売事業者名・運営責任者・問い合わせ先）を書き換え、利用規約・プライバシーポリシー・特定商取引法に基づく表記（`/terms` `/privacy` `/legal`）を確定する
+3. `src/lib/seller.ts` の事業者情報（運営責任者・問い合わせ先。販売事業者は株式会社オルタリズム）を書き換え、利用規約・プライバシーポリシー・特定商取引法に基づく表記（`/terms` `/privacy` `/legal`）を確定する
 4. Stripe でアカウントを作り、本人確認を済ませる。商品「hikeru 有料プラン」に価格を2つ作る（480円／月、4,800円／年。税込）
 5. Stripe の Webhook に `https://hikeru.app/api/billing/webhook` を登録する。送るイベント: `checkout.session.completed`、`customer.subscription.created` `updated` `deleted` `paused` `resumed`
 6. Stripe のカスタマーポータルを有効にする（支払い方法の変更・請求書・解約を許可）
