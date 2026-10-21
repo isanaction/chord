@@ -12,18 +12,31 @@ export function clampBpm(bpm: number): number {
   return Math.min(MAX_BPM, Math.max(MIN_BPM, Math.round(bpm)));
 }
 
+/** 最後に予約した拍の時刻（まだなければ null）と、次の拍の通し番号（鳴らし始めから数える） */
+export type BeatClock = { last: number | null; index: number };
+
 /**
- * メトロノームの次の拍を予約するための計算（設計書 7.4: 先読みして予約する）。
- * start からの経過で、[from, until) に入る拍の時刻と、小節の頭かどうかを返す。
+ * メトロノームの拍を先読みして予約するための計算（設計書 7.4）。
+ * from 以降 until より前の拍を返す。次の拍の時刻は、最後に予約した拍から今のテンポで決める。
+ * テンポを変えると次の拍から新しい間隔になり、拍の位置（小節の何拍目か）はずれない。
+ * 次の拍が from より前になるとき（テンポを大きく上げた、画面が裏に回って予約が遅れた）は from から鳴らす。
  */
-export function beatsBetween(start: number, bpm: number, perBar: number, from: number, until: number): { time: number; index: number; accent: boolean }[] {
+export function takeBeats(
+  clock: BeatClock,
+  bpm: number,
+  perBar: number,
+  from: number,
+  until: number,
+): { beats: { time: number; index: number; accent: boolean }[]; next: BeatClock } {
   const interval = 60 / bpm;
-  const first = Math.max(0, Math.ceil((from - start) / interval - 1e-9));
-  const out: { time: number; index: number; accent: boolean }[] = [];
-  for (let i = first; ; i++) {
-    const time = start + i * interval;
-    if (time >= until) break;
-    out.push({ time, index: i, accent: i % perBar === 0 });
+  const beats: { time: number; index: number; accent: boolean }[] = [];
+  let { last, index } = clock;
+  let time = last === null ? from : Math.max(from, last + interval);
+  while (time < until) {
+    beats.push({ time, index, accent: index % perBar === 0 });
+    last = time;
+    time += interval;
+    index++;
   }
-  return out;
+  return { beats, next: { last, index } };
 }

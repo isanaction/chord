@@ -13,7 +13,7 @@ import { displayContext, keyLabel, uniqueDisplayChords } from '@/domain/sheet/di
 import { collectChords } from '@/domain/sheet/serialize';
 import { playChord } from '@/audio/engine';
 import { chordMidi } from '@/domain/chord/voicing';
-import { parseYouTubeId } from '@/domain/sync/youtube';
+import { parseStartSeconds, parseYouTubeId } from '@/domain/sync/youtube';
 import { useAutoScroll, useWakeLock } from '@/lib/hooks';
 import { ChordStrip } from './ChordStrip';
 import { MetronomeBar } from './practice/MetronomeBar';
@@ -90,6 +90,7 @@ export function SheetScreen({ id }: { id: string }) {
     revisionId: detail?.revision.id ?? '',
     body: detail?.revision.body ?? EMPTY_BODY,
     videoId: videoOpen ? videoId : null,
+    startSeconds: parseStartSeconds(detail?.sheet.referenceVideoUrl),
     settings: settings ?? FALLBACK_SETTINGS,
     update,
     scrollRef,

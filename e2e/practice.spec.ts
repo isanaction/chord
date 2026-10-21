@@ -15,7 +15,7 @@ const FAKE_IFRAME_API = `
     box.textContent = 'テスト用の動画';
     box.style.cssText = 'color:#fff;display:flex;align-items:center;justify-content:center;height:100%';
     el.appendChild(box);
-    let base = 0, since = performance.now(), playing = false, rate = 1;
+    let base = (opts.playerVars && opts.playerVars.start) || 0, since = performance.now(), playing = false, rate = 1;
     const now = () => (playing ? base + ((performance.now() - since) / 1000) * rate : base);
     const state = (s) => opts.events && opts.events.onStateChange && opts.events.onStateChange({ data: s });
     self.getCurrentTime = now;
@@ -25,7 +25,13 @@ const FAKE_IFRAME_API = `
     self.playVideo = () => { base = now(); since = performance.now(); playing = true; state(1); };
     self.pauseVideo = () => { base = now(); playing = false; state(2); };
     self.seekTo = (s) => { base = s; since = performance.now(); };
-    self.setPlaybackRate = (r) => { base = now(); since = performance.now(); rate = r; window.__video.rate = r; };
+    self.getPlaybackRate = () => rate;
+    // 本物と同じく、対応していない速度は無視し、変わったときだけ知らせる
+    self.setPlaybackRate = (r) => {
+      if (!self.getAvailablePlaybackRates().includes(r) || r === rate) return;
+      base = now(); since = performance.now(); rate = r; window.__video.rate = r;
+      setTimeout(() => opts.events && opts.events.onPlaybackRateChange && opts.events.onPlaybackRateChange({ data: r }), 0);
+    };
     self.destroy = () => box.remove();
     window.__video = { player: self, rate, seek: (s) => self.seekTo(s), now };
     setTimeout(() => opts.events && opts.events.onReady && opts.events.onReady(), 0);
@@ -64,12 +70,12 @@ async function savedPlaybackRate(page: Page): Promise<number | undefined> {
   );
 }
 
-async function createSheetWithVideo(page: Page) {
+async function createSheetWithVideo(page: Page, videoUrl = 'https://youtu.be/dQw4w9WgXcQ') {
   await page.goto('/new');
   await page.getByRole('textbox', { name: '譜面テキスト' }).fill(SHEET_TEXT);
   await page.getByLabel('曲名（必須）').fill('練習の曲');
   await page.getByLabel('BPM').fill('90');
-  await page.getByLabel('参考動画（YouTube）').fill('https://youtu.be/dQw4w9WgXcQ');
+  await page.getByLabel('参考動画（YouTube）').fill(videoUrl);
   await page.getByRole('button', { name: '保存', exact: true }).click();
   await expect(page.getByRole('heading', { name: '練習の曲' })).toBeVisible();
 }
@@ -97,6 +103,13 @@ test('動画に合わせて同期を記録し、再生位置の行が追いか�
   const line = (text: string) => page.locator('[data-line-id]', { hasText: text });
   await expect(line('ひとつめの').getByText('0:02.0')).toBeVisible();
   await expect(line('よっつめの').getByText('0:14.0')).toBeVisible();
+  // 最後の行まで記録したら止まり、続けて押しても先頭の行の時刻を上書きしない
+  await expect(page.getByText('最後の行まで記録しました')).toBeVisible();
+  await seekVideo(page, 30);
+  await page.keyboard.press(' ');
+  await expect(line('ひとつめの').getByText('0:02.0')).toBeVisible();
+  await expect(record).toBeDisabled();
+
   // 動画と操作パネルが増えても、画面全体ははみ出さない（見出しが画面に残る）
   await expect(page.getByRole('heading', { name: '練習の曲' })).toBeInViewport();
 
@@ -138,6 +151,10 @@ test('動画に合わせて同期を記録し、再生位置の行が追いか�
   // 記録した同期データも残っている
   await seekVideo(page, 7);
   await expect(line('ふたつめの')).toHaveAttribute('aria-current', 'true');
+
+  // プレーヤー自身のメニューで速度を変えても、表示が実際の速度に合う
+  await page.evaluate(() => (window as unknown as { __video: { player: { setPlaybackRate(r: number): void } } }).__video.player.setPlaybackRate(1.25));
+  await expect(page.getByText('速度 ×1.25')).toBeVisible();
 });
 
 test('コード図を押すとコードが鳴り、メトロノームは曲の BPM から始まる', async ({ page }) => {
@@ -167,4 +184,11 @@ test('コード図を押すとコードが鳴り、メトロノームは曲の B
   await metronome.getByRole('button', { name: '止める' }).click();
   await metronome.getByRole('button', { name: 'メトロノームを閉じる' }).click();
   await expect(metronome).toHaveCount(0);
+});
+
+test('参考動画の URL の開始位置（t=）から再生できる', async ({ page }) => {
+  await useFakeYouTube(page);
+  await createSheetWithVideo(page, 'https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=30');
+  await page.getByRole('button', { name: '▶ 動画で練習' }).click();
+  await expect(page.getByText('0:30.0 / 1:00.0')).toBeVisible();
 });

@@ -265,14 +265,18 @@ export async function saveSettings(
   });
 }
 
-/** 譜面と動画の組の同期データ（自分のもの・削除されていないもの）。複数あれば最新 */
-export async function findSyncTrack(sheetId: string, videoId: string): Promise<SyncTrack | null> {
+/**
+ * 譜面と動画の組の同期データ（自分のもの・削除されていないもの）。
+ * 個人設定で選んだもの（preferredId）があればそれを、なければ最新のものを返す。
+ * 2台の端末でそれぞれ記録すると、同じ組に同期データが2つできることがある
+ */
+export async function findSyncTrack(sheetId: string, videoId: string, preferredId?: string): Promise<SyncTrack | null> {
   const user = currentUserId();
   const tracks = await getDB().syncTracks.where('sheetId').equals(sheetId).toArray();
   const mine = tracks
     .filter((t) => t.ownerId === user && t.videoId === videoId && !t.deletedAt)
     .sort((a, b) => b.updatedAt - a.updatedAt);
-  return mine[0] ?? null;
+  return mine.find((t) => t.id === preferredId) ?? mine[0] ?? null;
 }
 
 /** 同期データを作る（F-PRAC-02）。最初の時刻を記録するときに呼ぶ */

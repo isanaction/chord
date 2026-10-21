@@ -125,6 +125,19 @@ describe('端末間の同期', () => {
     });
   });
 
+    it('同じ譜面・動画に同期データが2つあるときは、個人設定で選んだものを使う', async () => {
+    const id = await on(pc, () => createSheet({ meta: { title: 'A' }, ...sheetText(), sourceKind: 'paste' }));
+    const detail = await on(pc, () => getSheetDetail(id));
+    const input = { sheetId: id, videoId: 'dQw4w9WgXcQ', revisionId: detail!.revision.id };
+    const older = await on(pc, () => createSyncTrack(input));
+    const newer = await on(pc, () => createSyncTrack(input));
+    await on(pc, () => updateSyncTrack(newer.id, { offsetMs: 100 }));
+    expect((await on(pc, () => findSyncTrack(id, 'dQw4w9WgXcQ')))?.id).toBe(newer.id);
+    expect((await on(pc, () => findSyncTrack(id, 'dQw4w9WgXcQ', older.id)))?.id).toBe(older.id);
+    // 選んだものが見つからなければ最新を使う
+    expect((await on(pc, () => findSyncTrack(id, 'dQw4w9WgXcQ', 'missing')))?.id).toBe(newer.id);
+  });
+
     it('もう一度同期しても重複して取り込まない', async () => {
     await on(pc, () => createSheet({ meta: { title: 'A' }, ...sheetText(), sourceKind: 'paste' }));
     await on(pc, () => syncOnce(pc, remote));

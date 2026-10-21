@@ -33,6 +33,7 @@ export function PracticeBar({ practice, onClose }: { practice: VideoPractice; on
       <nav aria-label="同期データの記録" className="shrink-0 border-t border-line bg-surface px-3 pt-2 pb-[max(16px,env(safe-area-inset-bottom))]">
         <div className="flex min-h-8 flex-wrap items-center gap-x-3 gap-y-1 px-1 pb-1.5 text-xs text-text-2">
           <span className="font-chord">{formatTime(p.nowMs)}</span>
+          {p.recordFinished && <span className="text-accent">最後の行まで記録しました。行を押すと、その行から記録し直せます</span>}
           {p.selectedLineId ? (
             <>
               <span>選んだ行 {p.selectedTime ?? '未記録'}</span>
@@ -65,7 +66,7 @@ export function PracticeBar({ practice, onClose }: { practice: VideoPractice; on
           </BarButton>
           <button
             aria-label="今の位置を次の行の時刻として記録する"
-            disabled={disabled}
+            disabled={disabled || p.recordFinished}
             onClick={p.recordNow}
             className="flex h-16 w-16 flex-col items-center justify-center rounded-full bg-accent-fill text-[11px] font-bold text-on-accent disabled:opacity-35"
           >
