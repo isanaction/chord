@@ -38,6 +38,31 @@
 4. `.env.example` を参考に `NEXT_PUBLIC_SUPABASE_URL` と `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` を設定する（Vercel では Environment Variables）
 5. 無料プランの一時停止を防ぐため、GitHub の Secrets に `SUPABASE_URL` と `SUPABASE_PUBLISHABLE_KEY` を登録する（`.github/workflows/keepalive.yml` が3日おきにアクセスする）
 
+## 有料プラン（準備中）
+
+料金は月額 480円・年額 4,800円（税込）。無料プランでは区間ループ・速度変更を1日3曲まで使える（`src/domain/plan.ts` で判定）。
+決済は Stripe。`NEXT_PUBLIC_BILLING_ENABLED` を `1` にするまでは、誰でもすべての機能を使え、料金ページは「準備中」と表示する。
+
+始めるまでに必要なこと:
+
+1. `supabase/migrations/20261021000000_billing.sql` を適用する（`subscriptions` テーブル）
+2. Vercel を Pro プランにする（Hobby は非商用に限られる）
+3. `src/lib/seller.ts` の事業者情報（販売事業者名・運営責任者・問い合わせ先）を書き換え、利用規約・プライバシーポリシー・特定商取引法に基づく表記（`/terms` `/privacy` `/legal`）を確定する
+4. Stripe でアカウントを作り、本人確認を済ませる。商品「hikeru 有料プラン」に価格を2つ作る（480円／月、4,800円／年。税込）
+5. Stripe の Webhook に `https://hikeru.app/api/billing/webhook` を登録する。送るイベント: `checkout.session.completed`、`customer.subscription.created` `updated` `deleted` `paused` `resumed`
+6. Stripe のカスタマーポータルを有効にする（支払い方法の変更・請求書・解約を許可）
+7. Vercel の Environment Variables に次を設定する。`NEXT_PUBLIC_` 以外はサーバーだけで使う秘密の値
+
+| 変数 | 値 |
+|---|---|
+| `STRIPE_SECRET_KEY` | Stripe のシークレットキー（`sk_live_…`。試すときは `sk_test_…`） |
+| `STRIPE_WEBHOOK_SECRET` | Webhook の署名シークレット（`whsec_…`） |
+| `STRIPE_PRICE_MONTH` / `STRIPE_PRICE_YEAR` | 価格の ID（`price_…`） |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase の secret key（購読の記録を書き込むため） |
+| `NEXT_PUBLIC_BILLING_ENABLED` | `1`（申し込みを受け付ける） |
+
+運営者が手動で有料プランを付けるときは、`subscriptions` に `status = 'active'` の行を入れる（Stripe の ID は空のまま）。
+
 ## 開発
 
 ```sh
