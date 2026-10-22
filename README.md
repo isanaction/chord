@@ -46,12 +46,11 @@
 始めるまでに必要なこと:
 
 1. `supabase/migrations/20261021000000_billing.sql` を適用する（`subscriptions` テーブル）
-2. Vercel を Pro プランにする（Hobby は非商用に限られる）
-3. 利用規約・プライバシーポリシー・特定商取引法に基づく表記（`/terms` `/privacy` `/legal`。事業者情報は `src/lib/seller.ts`）を確定する
-4. Stripe でアカウントを作り、本人確認を済ませる。商品「hikeru 有料プラン」に価格を2つ作る（480円／月、4,800円／年。税込）
-5. Stripe の Webhook に `https://hikeru.app/api/billing/webhook` を登録する。送るイベント: `checkout.session.completed`、`customer.subscription.created` `updated` `deleted` `paused` `resumed`
-6. Stripe のカスタマーポータルを有効にする（支払い方法の変更・請求書・解約を許可）
-7. Vercel の Environment Variables に次を設定する。`NEXT_PUBLIC_` 以外はサーバーだけで使う秘密の値
+2. 利用規約・プライバシーポリシー・特定商取引法に基づく表記（`/terms` `/privacy` `/legal`。事業者情報は `src/lib/seller.ts`）を確定する
+3. Stripe でアカウントを作り、本人確認を済ませる。商品「hikeru 有料プラン」に価格を2つ作る（480円／月、4,800円／年。税込）
+4. Stripe の Webhook に `https://hikeru.app/api/billing/webhook` を登録する。送るイベント: `checkout.session.completed`、`customer.subscription.created` `updated` `deleted` `paused` `resumed`
+5. Stripe のカスタマーポータルを有効にする（支払い方法の変更・請求書・解約を許可）
+6. Vercel の Environment Variables に次を設定する。`NEXT_PUBLIC_` 以外はサーバーだけで使う秘密の値
 
 | 変数 | 値 |
 |---|---|
